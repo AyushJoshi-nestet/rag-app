@@ -1,0 +1,15 @@
+rag-app/
+├── main.py       
+├── ingestion/
+│   ├── extract.py         
+│   ├── chunk.py             
+│   └── embed.py             
+├── retrieval/
+│   ├── vector_store.py      
+│   └── search.py            
+├── generation/
+│   └── llm.py              
+├── storage/
+│   ├── data.py
+|   └── db.py      
+└── requirements.txt

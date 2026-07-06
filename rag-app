@@ -1,0 +1,3 @@
+made a structural plan of teh rag-app to be used for teh pdf summary pipeline
+then read about the fastapi and how the tutorail woorks 
+tehn learned bout the internal working or vector dataabse like chromadb Qdrat how the whole data uis inserted or fetched and what advantages could Qdrant provide over the chroma db vector dataase 
