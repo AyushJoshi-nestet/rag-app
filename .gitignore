@@ -1,17 +1,1 @@
-# Python virtual environment
-rag.env/
-venv/
-.env/
-
-# Bytecode / cache
-__pycache__/
-*.pyc
-
-# PDFs (all pdf files anywhere in project)
-*.pdf
-
-# OS junk
-.DS_Store
-
-# Logs
-*.log
+.env
