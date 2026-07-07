@@ -11,7 +11,7 @@ from ingestion.extract import extract_text_from_pdf
 import pdfplumber
 import io
 from ingestion.chunk import make_chunks 
-
+from ingestion.pipeline import store
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,11 +65,13 @@ async def upload_document(file: UploadFile, session: SessionDep):
 
 @app.get("/extract-data/{document_id}/")
 async def get_text(document_id: int, session: SessionDep):
+    
     doc = session.get(Documents, document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     pdf_text = extract_text_from_pdf(file_path=doc.user_file_path)
     chunks = make_chunks(pdf_text)
+    vector = store(document_id=document_id, chunks=chunks)
 
-    return chunks
+    return vector
