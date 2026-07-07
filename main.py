@@ -7,6 +7,8 @@ from storage.data import Documents
 import uuid
 from pathlib import Path
 from ingestion.extract import extract_text_from_pdf
+import pdfplumber
+import io
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,12 +23,30 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @app.post("/upload")
 async def upload_document(file: UploadFile, session: SessionDep):
+   
+    content = await file.read()
+    
+    with pdfplumber.open(io.BytesIO(content)) as pdf:
+        num_pages = len(pdf.pages)
+
+    if num_pages > 25:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"PDF must not exceed 25 pages (got {num_pages})"
+        )
+    
+    if file.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are accepted"
+        )
+    
     document_id = str(uuid.uuid4())
     document_name = f"{document_id}_{file.filename}"
     save_path = STORAGE_PATH / document_name
-
+    
     with open(save_path, "wb") as f:
-        f.write(await file.read())
+        f.write(content)
 
     doc = Documents(file_id=document_id, user_file_path=str(save_path), user_file_name=document_name)
     session.add(doc)
@@ -39,6 +59,7 @@ async def upload_document(file: UploadFile, session: SessionDep):
 async def get_text(document_id: int, session: SessionDep):
     doc = session.get(Documents, document_id)
     if not doc:
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     
     return extract_text_from_pdf(file_path=doc.user_file_path)
+

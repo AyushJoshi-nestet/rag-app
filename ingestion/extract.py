@@ -1,110 +1,55 @@
+from fastapi import HTTPException, status
 import pdfplumber
 from paddleocr import PaddleOCR
 import numpy as np
-import time
-import sys
-import platform
-import paddle
-
+import os
+os.environ["FLAGS_use_mkldnn"] = "0"
 ocr_engine = None
-
 
 def get_ocr_engine():
     global ocr_engine
-
     if ocr_engine is None:
-        print("\n===== OCR INIT DEBUG =====")
-        print("Paddle version:", paddle.__version__)
-        print("Device:", paddle.device.get_device())
-
-        try:
-            ocr_engine = PaddleOCR(
-    lang="en",
-    use_angle_cls=False,
-    enable_mkldnn=False,
-    device="cpu",
-    use_doc_preprocessor=False,
-)
-            print("OCR engine initialized successfully\n")
-
-        except Exception as e:
-            print("OCR INIT FAILED:")
-            print(e)
-            raise
-
+        ocr_engine = PaddleOCR(
+            use_angle_cls=False,
+            lang="en"
+        )
     return ocr_engine
 
 
 def is_image(text: str, min_chars: int = 20):
     return len(text.strip()) < min_chars
 
-
 def extract_text_from_pdf(file_path: str):
-    print("\n===== PDF DEBUG START =====")
-    print("File:", file_path)
-    print("Python:", sys.version)
-    print("Platform:", platform.platform())
-
+    print(file_path)
     pdf_text = []
 
     with pdfplumber.open(file_path) as pdf:
-        print("Total pages:", len(pdf.pages))
+        page_count = len(pdf.pages)
 
-        for i, page in enumerate(pdf.pages):
-            print(f"\n----- PAGE {i} -----")
+        if page_count > 25:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="PDF must not exceed 25 pages"
+            )
 
-            text = page.extract_text() or ""
-            print("Extracted text length:", len(text))
-
-            if not is_image(text):
-                print("Using native PDF text extraction")
-                pdf_text.append({
-                    "text": text,
-                    "source": "pdf_extracted"
-                })
-                continue
-
-            print("Using OCR path")
-
+        for page_number, page in enumerate(pdf.pages, start=1):
             image = page.to_image(resolution=150).original
             image_array = np.array(image.convert("RGB"))
 
-            print("Image shape:", image_array.shape)
-            print("Image dtype:", image_array.dtype)
-
             ocr = get_ocr_engine()
+            result = ocr.ocr(image_array)
 
-            t1 = time.time()
-            try:
-                result = ocr.predict(image_array)
-            except Exception as e:
-                print("OCR PREDICT FAILED:")
-                print(e)
-                raise
-
-            print("OCR time:", time.time() - t1)
-            print("Raw result type:", type(result))
-
-            ocr_text = []
-
-            if result:
-                try:
-                    first = result[0]
-                    print("First result sample:", first)
-
-                    if isinstance(first, dict) and "rec_texts" in first:
-                        ocr_text = first["rec_texts"]
-                    else:
-                        print("Unexpected OCR format:", first)
-
-                except Exception as e:
-                    print("Result parsing error:", e)
+            page_lines = []
+            if result and result[0]:
+                for detection in result[0]:
+                    box, (text, confidence) = detection
+                    page_lines.append(text)
 
             pdf_text.append({
-                "text": "\n".join(ocr_text),
+                "page_number": page_number,
+                "text": "\n".join(page_lines),
                 "source": "paddle_ocr",
                 "file_path": file_path
             })
 
-    print("\n===== PDF DEBUG END =====")
     return pdf_text
