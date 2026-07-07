@@ -1,4 +1,5 @@
-from fastapi import FastAPI, UploadFile, Depends, HTTPException, status
+from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request
+from fastapi.responses import RedirectResponse
 from contextlib import asynccontextmanager
 from typing import Annotated
 from sqlmodel import Session
@@ -9,6 +10,8 @@ from pathlib import Path
 from ingestion.extract import extract_text_from_pdf
 import pdfplumber
 import io
+from ingestion.chunk import make_chunks 
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,28 +26,33 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @app.post("/upload")
 async def upload_document(file: UploadFile, session: SessionDep):
-   
-    content = await file.read()
-    
-    with pdfplumber.open(io.BytesIO(content)) as pdf:
-        num_pages = len(pdf.pages)
 
-    if num_pages > 25:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"PDF must not exceed 25 pages (got {num_pages})"
-        )
-    
     if file.content_type != "application/pdf":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only PDF files are accepted"
         )
+    content = await file.read()
+
+    try:
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            num_pages = len(pdf.pages)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is not a valid PDF"
+        )
     
+    if num_pages > 25:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"PDF must not exceed 25 pages (got {num_pages})"
+        )
+
     document_id = str(uuid.uuid4())
     document_name = f"{document_id}_{file.filename}"
     save_path = STORAGE_PATH / document_name
-    
+
     with open(save_path, "wb") as f:
         f.write(content)
 
@@ -59,7 +67,9 @@ async def upload_document(file: UploadFile, session: SessionDep):
 async def get_text(document_id: int, session: SessionDep):
     doc = session.get(Documents, document_id)
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    
-    return extract_text_from_pdf(file_path=doc.user_file_path)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
+    pdf_text = extract_text_from_pdf(file_path=doc.user_file_path)
+    chunks = make_chunks(pdf_text)
+
+    return chunks

@@ -2,7 +2,7 @@ from sqlmodel import Field, SQLModel
 from datetime import datetime
 from sqlalchemy import Column, DateTime, func
 
-class Documents(SQLModel, table=True):
+class Documents(SQLModel, table= True):
     __tablename__ = 'documents'
 
     id: int | None = Field(default=None, primary_key=True)

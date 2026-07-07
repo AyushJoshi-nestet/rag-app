@@ -1,8 +1,8 @@
-from fastapi import HTTPException, status
 import pdfplumber
 from paddleocr import PaddleOCR
 import numpy as np
 import os
+
 os.environ["FLAGS_use_mkldnn"] = "0"
 ocr_engine = None
 
@@ -15,23 +15,11 @@ def get_ocr_engine():
         )
     return ocr_engine
 
-
-def is_image(text: str, min_chars: int = 20):
-    return len(text.strip()) < min_chars
-
-def extract_text_from_pdf(file_path: str):
-    print(file_path)
+def extract_text_from_pdf(file_path: str):    
+    
     pdf_text = []
 
     with pdfplumber.open(file_path) as pdf:
-        page_count = len(pdf.pages)
-
-        if page_count > 25:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="PDF must not exceed 25 pages"
-            )
-
         for page_number, page in enumerate(pdf.pages, start=1):
             image = page.to_image(resolution=150).original
             image_array = np.array(image.convert("RGB"))
@@ -47,7 +35,7 @@ def extract_text_from_pdf(file_path: str):
 
             pdf_text.append({
                 "page_number": page_number,
-                "text": "\n".join(page_lines),
+                "text": "   ".join(page_lines),
                 "source": "paddle_ocr",
                 "file_path": file_path
             })
