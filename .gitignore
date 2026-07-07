@@ -1,1 +1,15 @@
+# Virtual environment
+rag.env/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment files
 .env
+
+# Uploaded documents
+storage/documents/
+storage/*.pdf
+*.pdf.env
