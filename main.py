@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request
+from pydantic import BaseModel
 from fastapi.responses import RedirectResponse
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -12,7 +13,8 @@ import pdfplumber
 import io
 from ingestion.chunk import make_chunks 
 from ingestion.pipeline import store
-
+from retrieval.search import get_data
+from generation.llm import llm_response
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
@@ -20,11 +22,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+class Question(BaseModel):
+    document_id: int
+    pipeline: str = 'rag'
+    question: str
+
 STORAGE_PATH = Path("storage/documents")
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
-@app.post("/upload")
+@app.post("/upload/")
 async def upload_document(file: UploadFile, session: SessionDep):
 
     if file.content_type != "application/pdf":
@@ -75,3 +82,16 @@ async def get_text(document_id: int, session: SessionDep):
     vector = store(document_id=document_id, chunks=chunks)
 
     return vector
+
+@app.post("/query/")
+async def get_response(data: Question):
+    
+    question = data.question
+    pipeline = data.pipeline
+    document_id = data.document_id
+
+    get_relevent_chunks = get_data(question,  pipeline, document_id)
+
+    answer = llm_response(question=question, data=get_relevent_chunks)
+
+    return answer

@@ -1,15 +1,26 @@
-rag-app/
-├── main.py       
-├── ingestion/
-│   ├── extract.py         
-│   ├── chunk.py             
-│   └── embed.py             
-├── retrieval/
-│   ├── vector_store.py      
-│   └── search.py            
-├── generation/
-│   └── llm.py              
-├── storage/
-│   ├── data.py
-|   └── db.py      
-└── requirements.txt
+RAG APP Structure
+    rag-app/
+    ├── main.py       
+    ├── ingestion/
+    │   ├── extract.py         
+    │   ├── chunk.py             
+    │   └── embed.py             
+    ├── retrieval/
+    │   ├── vector_store.py      
+    │   └── search.py            
+    ├── generation/
+    │   └── llm.py              
+    ├── storage/
+    │   ├── data.py
+    |   └── db.py      
+    └── requirements.txt
+
+QDrant Structure (used in RAG APP)
+    Collection
+    └── Shard 1 ── Segments ── Points
+    └── Shard 2 ── Segments ── Points
+    └── Shard 3 ── Segments ── Points
+
+ChromaDB Structure (not used in RAG APP, just for the comparison with QDrant Structure)
+    Collection
+    └── Points/embeddings (all in one logical store)
