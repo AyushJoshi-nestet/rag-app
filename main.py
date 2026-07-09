@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request
 from pydantic import BaseModel
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, PlainTextResponse, StreamingResponse
 from contextlib import asynccontextmanager
 from typing import Annotated
 from sqlmodel import Session
@@ -15,6 +15,8 @@ from ingestion.chunk import make_chunks
 from ingestion.pipeline import store
 from retrieval.search import get_data
 from generation.llm import llm_response
+import json
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
@@ -84,7 +86,7 @@ async def get_text(document_id: int, session: SessionDep):
     return vector
 
 @app.post("/query/")
-async def get_response(data: Question):
+async def get_response(data: Question, session: SessionDep):
     
     question = data.question
     pipeline = data.pipeline
@@ -92,6 +94,11 @@ async def get_response(data: Question):
 
     get_relevent_chunks = get_data(question,  pipeline, document_id)
 
-    answer = llm_response(question=question, data=get_relevent_chunks)
+    return StreamingResponse(
+        llm_response(question=question, data=get_relevent_chunks, session=session, document_id=document_id),
+        media_type="text/event-stream"
+    )
 
-    return answer
+# did streaming in this
+# saved teh response to the database
+# used teh saved response for teh previous context for teh llm
