@@ -6,7 +6,7 @@ import os
 os.environ["FLAGS_use_mkldnn"] = "0"
 ocr_engine = None
 
-async def get_ocr_engine():
+def get_ocr_engine():
     global ocr_engine
     if ocr_engine is None:
         ocr_engine = PaddleOCR(

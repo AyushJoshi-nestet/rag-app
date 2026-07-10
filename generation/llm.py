@@ -24,6 +24,7 @@ def get_previous_responses(document_id, session, limit=2):
 async def llm_response(question, data, session, document_id):
 
     previous = get_previous_responses(document_id, session, limit=2)
+    print(data)
 
     message = [
         {

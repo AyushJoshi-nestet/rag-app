@@ -16,13 +16,17 @@ from ingestion.pipeline import store
 from retrieval.search import get_data
 from generation.llm import llm_response
 from sentence_transformers import SentenceTransformer, CrossEncoder
+from fastembed import SparseTextEmbedding
 import json
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+
     app.state.embed_model = SentenceTransformer('BAAI/bge-small-en-v1.5')
     app.state.rerank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+    app.state.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -83,10 +87,9 @@ async def get_text(document_id: int, session: SessionDep, request: Request):
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    pdf_text = extract_text_from_pdf(file_path=doc.user_file_path)
-    chunks = make_chunks(pdf_text)
-    vector = store(document_id=document_id, chunks=chunks, embed_model=embed_model )
-
+    pdf_text = await extract_text_from_pdf(file_path=doc.user_file_path)
+    chunks =  await make_chunks(pdf_text)
+    vector = await store(document_id=document_id, chunks=chunks, embed_model=embed_model)
     return vector
 
 @app.post("/query/")
@@ -97,10 +100,15 @@ async def get_response(data: Question, session: SessionDep, request: Request):
     document_id = data.document_id
     embed_model = request.app.state.embed_model
     rerank_model = request.app.state.rerank_model
+    sparse_model = request.app.state.sparse_model
 
-    get_relevent_chunks = get_data(question,  pipeline, document_id, embed_model, rerank_model)
+    get_relevent_chunks = get_data(question,  pipeline, document_id, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
         llm_response(question=question, data=get_relevent_chunks, session=session, document_id=document_id),
         media_type="text/event-stream"
     )
+
+# corrected the datafetching and embedings pipeline to be workig together asynchronasly 
+# Fix the repeated model loading
+# applied the hybrid search with existing Qdrant retreivel using bm2 space embeding and RRf
