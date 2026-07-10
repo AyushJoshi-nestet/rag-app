@@ -1,4 +1,4 @@
-def prompt():
+async def prompt():
     return """
 You are a helpful assistant that answers questions using ONLY the provided context.
 

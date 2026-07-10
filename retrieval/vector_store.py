@@ -2,21 +2,13 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance,PayloadSchemaType
 from dotenv import load_dotenv
 
-from sentence_transformers import SentenceTransformer
 import os
 
 load_dotenv()
 
 client = QdrantClient(url= os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
-model = SentenceTransformer('BAAI/bge-small-en-v1.5')
-
-if not client.collection_exists("rag_app_collection"):
-    client.create_collection(
-        collection_name="rag_app_collection",
-        vectors_config=VectorParams(size=model.get_embedding_dimension(), distance=Distance.COSINE))
 
 COLLECTION_NAME = "rag_app_collection"
-
 
 client.create_payload_index(
     collection_name= COLLECTION_NAME,
@@ -36,7 +28,15 @@ client.create_payload_index(
     field_schema= PayloadSchemaType.INTEGER
 )
 
-def collection_save(prepared_batch):
+async def collection_save(prepared_batch, embed_model):
+    model = embed_model
+
+    if not client.collection_exists("rag_app_collection"):
+        client.create_collection(
+            collection_name="rag_app_collection",
+            vectors_config=VectorParams(size=model.get_embedding_dimension(), distance=Distance.COSINE))
+
+
     results = []
     for ids, documents, metadata, embeddings in prepared_batch:
         points = []

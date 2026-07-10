@@ -1,5 +1,5 @@
 
-def make_chunks(pdf_text, chunk_size=700, chunk_overlap=50):
+async def make_chunks(pdf_text, chunk_size=700, chunk_overlap=50):
 
     all_chunks = []
     chunk_id = 0

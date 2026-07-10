@@ -1,9 +1,7 @@
-from sentence_transformers import SentenceTransformer
-
-def embedding_documents(documents: list[str]):
+async def embedding_documents(documents: list[str], embed_model):
 
     documents = documents
-    model = SentenceTransformer('BAAI/bge-small-en-v1.5')
+    model = embed_model
     embeddings = model.encode(documents)
-
+    print(embeddings)
     return embeddings

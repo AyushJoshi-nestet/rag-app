@@ -15,11 +15,14 @@ from ingestion.chunk import make_chunks
 from ingestion.pipeline import store
 from retrieval.search import get_data
 from generation.llm import llm_response
+from sentence_transformers import SentenceTransformer, CrossEncoder
 import json
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    app.state.embed_model = SentenceTransformer('BAAI/bge-small-en-v1.5')
+    app.state.rerank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -73,32 +76,31 @@ async def upload_document(file: UploadFile, session: SessionDep):
     return {"id": doc.id, "file_id": doc.file_id, "file_path": doc.user_file_path, "file_name": doc.user_file_name}
 
 @app.get("/extract-data/{document_id}/")
-async def get_text(document_id: int, session: SessionDep):
-    
+async def get_text(document_id: int, session: SessionDep, request: Request):
+
+    embed_model = request.app.state.embed_model    
     doc = session.get(Documents, document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     pdf_text = extract_text_from_pdf(file_path=doc.user_file_path)
     chunks = make_chunks(pdf_text)
-    vector = store(document_id=document_id, chunks=chunks)
+    vector = store(document_id=document_id, chunks=chunks, embed_model=embed_model )
 
     return vector
 
 @app.post("/query/")
-async def get_response(data: Question, session: SessionDep):
+async def get_response(data: Question, session: SessionDep, request: Request):
     
     question = data.question
     pipeline = data.pipeline
     document_id = data.document_id
+    embed_model = request.app.state.embed_model
+    rerank_model = request.app.state.rerank_model
 
-    get_relevent_chunks = get_data(question,  pipeline, document_id)
+    get_relevent_chunks = get_data(question,  pipeline, document_id, embed_model, rerank_model)
 
     return StreamingResponse(
         llm_response(question=question, data=get_relevent_chunks, session=session, document_id=document_id),
         media_type="text/event-stream"
     )
-
-# did streaming in this
-# saved teh response to the database
-# used teh saved response for teh previous context for teh llm

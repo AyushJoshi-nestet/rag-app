@@ -6,7 +6,7 @@ import os
 os.environ["FLAGS_use_mkldnn"] = "0"
 ocr_engine = None
 
-def get_ocr_engine():
+async def get_ocr_engine():
     global ocr_engine
     if ocr_engine is None:
         ocr_engine = PaddleOCR(
@@ -15,7 +15,7 @@ def get_ocr_engine():
         )
     return ocr_engine
 
-def extract_text_from_pdf(file_path: str):    
+async def extract_text_from_pdf(file_path: str):    
     
     pdf_text = []
 

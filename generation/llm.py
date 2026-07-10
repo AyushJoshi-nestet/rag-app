@@ -18,8 +18,7 @@ def get_previous_responses(document_id, session, limit=2):
         .limit(limit)
     )
     records = session.exec(statement).all()
-    print(records)
-    return records  # oldest -> newest, so conversation reads in order
+    return records
 
 
 async def llm_response(question, data, session, document_id):

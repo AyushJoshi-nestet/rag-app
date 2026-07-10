@@ -3,7 +3,7 @@ from ingestion.embed import embedding_documents
 from retrieval.vector_store import collection_save 
 import uuid
 
-def store(document_id: int,  chunks: str, batch_size: int = 500):
+async def store(embed_model, document_id,  chunks, batch_size: int = 500, ):
     chunks = chunks
     if not chunks:
         raise HTTPException(
@@ -16,7 +16,6 @@ def store(document_id: int,  chunks: str, batch_size: int = 500):
         
         batch = chunks[i:i + batch_size]
         ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{document_id}_{c['id']}")) for c in batch]
-        print(ids)
         documents = [c["text"] for c in batch]
         
         metadata = [
@@ -27,9 +26,8 @@ def store(document_id: int,  chunks: str, batch_size: int = 500):
             } for c in batch
         ]
         
-        embeddings = embedding_documents(documents)
+        embeddings = embedding_documents(documents, embed_model)
         prepared_batch.append((ids, documents, metadata, embeddings))
     
-    store_embeddings = collection_save(prepared_batch=prepared_batch)
-
+    store_embeddings = collection_save(prepared_batch=prepared_batch, embed_model=embed_model)
     return store_embeddings
