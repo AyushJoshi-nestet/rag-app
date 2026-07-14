@@ -17,7 +17,7 @@ class LLM_Response(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)    
 
-    user_token : str
+    user_email : str
     question: str
     llm_response: str
 

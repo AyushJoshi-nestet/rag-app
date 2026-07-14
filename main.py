@@ -178,12 +178,14 @@ async def get_response(data: Question, session: SessionDep, request: Request, Au
     pipeline = data.pipeline
 
     header_token = jwt.decode(
-    Authorization,
-    SECRET_KEY,
-    algorithms=["HS256"]
+        Authorization,
+        SECRET_KEY,
+        algorithms=["HS256"]
     )
 
-    user_token = header_token["user_token"]
+    user_email = header_token.get("email")
+    if not user_email:
+       raise HTTPException(status_code=401, detail="Invalid token")
 
     embed_model = request.app.state.embed_model
     rerank_model = request.app.state.rerank_model
@@ -192,6 +194,8 @@ async def get_response(data: Question, session: SessionDep, request: Request, Au
     get_relevent_chunks = get_data(question,  pipeline, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
-        llm_response( user_token= user_token,question=question, data=get_relevent_chunks, session=session),
+
+        llm_response( user_email= user_email, question=question, data=get_relevent_chunks, session=session),
         media_type="text/event-stream"
+    
     )

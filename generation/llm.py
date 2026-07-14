@@ -9,23 +9,21 @@ load_dotenv()
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-
-def get_previous_responses(user_token, session, limit=2):
+def get_previous_responses(user_email, session, limit=2):
     statement = (
         select(LLM_Response)
-        .where(LLM_Response.user_token == user_token)
+        .where(LLM_Response.user_email == user_email)
         .order_by(LLM_Response.created_at.desc())
         .limit(limit)
     )
     records = session.exec(statement).all()
     return records
 
+async def llm_response(question, data, session, user_email):
 
-async def llm_response(question, data, session, user_token):
-
-    previous = get_previous_responses(user_token, session, limit=2)
+    previous = get_previous_responses(user_email, session, limit=2)
     print(data)
-
+    
     message = [
         {
             "role": "system",
@@ -36,7 +34,6 @@ async def llm_response(question, data, session, user_token):
     for record in previous:
         message.append({"role": "assistant", "content": f"This is teh previous question asked --->>> {record.question}"})
         message.append({"role": "assistant", "content": f"This is the response to that question --->>> {record.llm_response}"})
-
     message.append({"role": "user", "content": question})
 
     response = groq_client.chat.completions.create(
@@ -48,13 +45,11 @@ async def llm_response(question, data, session, user_token):
     database_save = []
     for chunk in response:
         content = chunk.choices[0].delta.content
-
         if content:
             database_save.append(content)
             yield f"data: {content}\n\n"
 
     final_response = "".join(database_save)
-    new_response = LLM_Response(user_token= user_token, question=question, llm_response=final_response)
+    new_response = LLM_Response(user_email= user_email, question=question, llm_response=final_response)
     session.add(new_response)
-
     session.commit()
