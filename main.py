@@ -2,10 +2,11 @@ from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from fastapi.responses import RedirectResponse, PlainTextResponse, StreamingResponse
 from contextlib import asynccontextmanager
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestFormStrict
 from typing import Annotated
-from sqlmodel import Session
+from sqlmodel import Session, select
 from storage.db import create_db_and_tables, get_session
-from storage.data import Documents
+from storage.data import Documents, Users
 import uuid
 from pathlib import Path
 from ingestion.extract import extract_text_from_pdf
@@ -18,6 +19,15 @@ from generation.llm import llm_response
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from fastembed import SparseTextEmbedding
 import json
+import os
+from dotenv import load_dotenv
+from datetime import timedelta
+import jwt
+
+load_dotenv()
+SECRET_KEY = os.getenv('SECRET_KEY')
+ALGORITHM = "HS256"
+TOKEN_EXPIRE_TIME = 60
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,22 +36,94 @@ async def lifespan(app: FastAPI):
     app.state.embed_model = SentenceTransformer('BAAI/bge-small-en-v1.5')
     app.state.rerank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     app.state.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
-
+   
     yield
 
 app = FastAPI(lifespan=lifespan)
 
 class Question(BaseModel):
-    document_id: int
     pipeline: str = 'rag'
     question: str
 
-STORAGE_PATH = Path("storage/documents")
+class UserFields(BaseModel):
+    name: str
+    phone: str
+    email: str
+    password: str
 
+class LoginFields(BaseModel):
+    email: str
+    password: str
+
+STORAGE_PATH = Path("storage/documents")
 SessionDep = Annotated[Session, Depends(get_session)]
 
+
+def create_access_token(data: dict):
+    token = jwt.encode(
+    payload=data,
+    key=SECRET_KEY,
+    algorithm=ALGORITHM
+)
+    return token
+
+@app.post("/sign-up/")
+async def user_signup(data: UserFields, session: SessionDep):
+    
+    statement = select(Users).where(
+        Users.email == data.email    )
+    
+    user_data = session.exec(statement).first()
+    
+    if user_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="email already exist"
+        )
+
+    Euser = Users(
+        name=data.name,
+        phone=data.phone,
+        email=data.email,
+        password=data.password,
+    )
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+            }
+
+@app.post("/login/")
+async def user_login(data: LoginFields, session: SessionDep):
+
+    statement = select(Users).where(
+        Users.email == data.email,
+        Users.password == data.password
+    )
+    
+    user_data = session.exec(statement).first()
+
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invalid email or password"
+        )    
+    
+    token = create_access_token(
+        data=user_data.model_dump(mode="json")
+    )
+
+    return {
+        token
+    }
+
 @app.post("/upload/")
-async def upload_document(file: UploadFile, session: SessionDep):
+async def upload_document(file: UploadFile, session: SessionDep, request: Request):
 
     if file.content_type != "application/pdf":
         raise HTTPException(
@@ -53,12 +135,13 @@ async def upload_document(file: UploadFile, session: SessionDep):
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             num_pages = len(pdf.pages)
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file is not a valid PDF"
         )
-    
+
     if num_pages > 25:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,38 +160,26 @@ async def upload_document(file: UploadFile, session: SessionDep):
     session.commit()
     session.refresh(doc)
 
-    return {"id": doc.id, "file_id": doc.file_id, "file_path": doc.user_file_path, "file_name": doc.user_file_name}
-
-@app.get("/extract-data/{document_id}/")
-async def get_text(document_id: int, session: SessionDep, request: Request):
-
     embed_model = request.app.state.embed_model    
-    doc = session.get(Documents, document_id)
-    if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    pdf_text = await extract_text_from_pdf(file_path=doc.user_file_path)
+    pdf_text = await extract_text_from_pdf(file_path=save_path)
     chunks =  await make_chunks(pdf_text)
-    vector = await store(document_id=document_id, chunks=chunks, embed_model=embed_model)
+    vector = await store(chunks=chunks, embed_model=embed_model)
     return vector
+
 
 @app.post("/query/")
 async def get_response(data: Question, session: SessionDep, request: Request):
     
     question = data.question
     pipeline = data.pipeline
-    document_id = data.document_id
     embed_model = request.app.state.embed_model
     rerank_model = request.app.state.rerank_model
     sparse_model = request.app.state.sparse_model
 
-    get_relevent_chunks = get_data(question,  pipeline, document_id, embed_model, rerank_model, sparse_model)
+    get_relevent_chunks = get_data(question,  pipeline, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
-        llm_response(question=question, data=get_relevent_chunks, session=session, document_id=document_id),
+        llm_response(question=question, data=get_relevent_chunks, session=session),
         media_type="text/event-stream"
     )
-
-# corrected the datafetching and embedings pipeline to be workig together asynchronasly 
-# Fix the repeated model loading
-# applied the hybrid search with existing Qdrant retreivel using bm2 space embeding and RRf

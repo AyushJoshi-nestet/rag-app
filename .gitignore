@@ -13,3 +13,6 @@ __pycache__/
 storage/documents/
 storage/*.pdf
 *.pdf.env
+
+# used for migrations
+alembic

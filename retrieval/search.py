@@ -6,7 +6,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue, Prefetch, S
 COLLECTION_NAME = "rag_app_collection"
 client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
 
-def get_data(question, pipeline, document_id, embed_model, rerank_model, sparse_model ,top_k: int = 4, fetch_k: int = 20):
+def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k: int = 4, fetch_k: int = 20):
     model = embed_model
     sparse_model = sparse_model
     reranker = rerank_model
@@ -20,9 +20,7 @@ def get_data(question, pipeline, document_id, embed_model, rerank_model, sparse_
 
     query_filter = Filter(
         must=[
-            FieldCondition(key="pipeline", match=MatchValue(value=pipeline)),
-                FieldCondition(key="document_id", match=MatchValue(value=document_id)),
-        ]
+            FieldCondition(key="pipeline", match=MatchValue(value=pipeline))        ]
     )
 
     candidates = client.query_points(

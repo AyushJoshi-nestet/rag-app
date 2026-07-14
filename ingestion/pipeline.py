@@ -6,7 +6,7 @@ import uuid
 
 sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
 
-async def store(embed_model, document_id, chunks, batch_size: int = 500):
+async def store(embed_model, chunks, batch_size: int = 500):
     
     if not chunks:
         raise HTTPException(
@@ -18,12 +18,10 @@ async def store(embed_model, document_id, chunks, batch_size: int = 500):
 
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i:i + batch_size]
-        ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{document_id}_{c['id']}")) for c in batch]
+        ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, f"id_{c['id']}")) for c in batch]
         documents = [c["text"] for c in batch]
         metadata = [
             {
-                "pipeline": "rag",
-                "document_id": document_id,
                 "page_number": c["page_number"]
             } for c in batch
         ]

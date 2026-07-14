@@ -12,6 +12,6 @@ async def get_session():
     with Session(engine) as session:
         yield session
 
-async def create_db_and_tables():
+def create_db_and_tables():
     import storage.data
     SQLModel.metadata.create_all(engine)
