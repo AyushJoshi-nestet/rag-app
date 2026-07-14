@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request
+from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request, Header
 from pydantic import BaseModel
 from fastapi.responses import RedirectResponse, PlainTextResponse, StreamingResponse
 from contextlib import asynccontextmanager
@@ -41,6 +41,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+class HeaderToken(BaseModel):
+    Authorization: str
+
 class Question(BaseModel):
     pipeline: str = 'rag'
     question: str
@@ -81,7 +84,7 @@ async def user_signup(data: UserFields, session: SessionDep):
             detail="email already exist"
         )
 
-    Euser = Users(
+    user = Users(
         name=data.name,
         phone=data.phone,
         email=data.email,
@@ -165,14 +168,23 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
     pdf_text = await extract_text_from_pdf(file_path=save_path)
     chunks =  await make_chunks(pdf_text)
     vector = await store(chunks=chunks, embed_model=embed_model)
-    return vector
+    return vector    
 
 
 @app.post("/query/")
-async def get_response(data: Question, session: SessionDep, request: Request):
+async def get_response(data: Question, session: SessionDep, request: Request, Authorization: str = Header()):
     
     question = data.question
     pipeline = data.pipeline
+
+    header_token = jwt.decode(
+    Authorization,
+    SECRET_KEY,
+    algorithms=["HS256"]
+    )
+
+    user_token = header_token["user_token"]
+
     embed_model = request.app.state.embed_model
     rerank_model = request.app.state.rerank_model
     sparse_model = request.app.state.sparse_model
@@ -180,6 +192,6 @@ async def get_response(data: Question, session: SessionDep, request: Request):
     get_relevent_chunks = get_data(question,  pipeline, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
-        llm_response(question=question, data=get_relevent_chunks, session=session),
+        llm_response( user_token= user_token,question=question, data=get_relevent_chunks, session=session),
         media_type="text/event-stream"
     )

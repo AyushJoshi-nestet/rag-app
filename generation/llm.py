@@ -10,9 +10,10 @@ load_dotenv()
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
-def get_previous_responses( session, limit=2):
+def get_previous_responses(user_token, session, limit=2):
     statement = (
         select(LLM_Response)
+        .where(LLM_Response.user_token == user_token)
         .order_by(LLM_Response.created_at.desc())
         .limit(limit)
     )
@@ -20,9 +21,9 @@ def get_previous_responses( session, limit=2):
     return records
 
 
-async def llm_response(question, data, session):
+async def llm_response(question, data, session, user_token):
 
-    previous = get_previous_responses(session, limit=2)
+    previous = get_previous_responses(user_token, session, limit=2)
     print(data)
 
     message = [
@@ -53,7 +54,7 @@ async def llm_response(question, data, session):
             yield f"data: {content}\n\n"
 
     final_response = "".join(database_save)
-    new_response = LLM_Response(user_token= question=question, llm_response=final_response)
+    new_response = LLM_Response(user_token= user_token, question=question, llm_response=final_response)
     session.add(new_response)
 
     session.commit()
