@@ -1,12 +1,11 @@
 import os
 from qdrant_client import QdrantClient
-from rank_bm25 import BM25Okapi
 from qdrant_client.models import Filter, FieldCondition, MatchValue, Prefetch, SparseVector, RrfQuery, Rrf
 
 COLLECTION_NAME = "rag_app_collection"
 client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
 
-def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k: int = 4, fetch_k: int = 20):
+def get_data(question, embed_model, rerank_model, sparse_model ,top_k: int = 4, fetch_k: int = 20):
     model = embed_model
     sparse_model = sparse_model
     reranker = rerank_model
@@ -18,10 +17,11 @@ def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k:
 
     sparse_query = list(sparse_model.embed([question]))[0]
 
-    query_filter = Filter(
-        must=[
-            FieldCondition(key="pipeline", match=MatchValue(value=pipeline))        ]
-    )
+    # query_filter = Filter(
+    #     must=[
+    #         FieldCondition(key="source_name", match=MatchValue(value=".pdf")),
+    #     ]
+    # )
 
     candidates = client.query_points(
         collection_name=COLLECTION_NAME,
@@ -29,7 +29,7 @@ def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k:
             Prefetch(
                 query=embedded_question,
                 using="dense",
-                filter=query_filter,
+                # filter=query_filter,
                 limit=fetch_k,
             ),
             Prefetch(
@@ -38,7 +38,7 @@ def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k:
                     values=sparse_query.values.tolist(),
                 ),
                 using="bm25",
-                filter=query_filter,
+                # filter=query_filter,
                 limit=fetch_k,
             ),
         ],
@@ -46,7 +46,6 @@ def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k:
         limit=fetch_k,
         with_payload=True,
     ).points
-    print(candidates)
     if not candidates:
         return []
 
@@ -54,8 +53,8 @@ def get_data(question, pipeline, embed_model, rerank_model, sparse_model ,top_k:
     scores = reranker.predict(pairs)
     reranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)[:top_k]
 
-    print(reranked)
 
     chunks = [c.payload["text"] for c, score in reranked]
 
-    return chunks
+    return chunks   
+

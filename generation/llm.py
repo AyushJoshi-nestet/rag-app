@@ -20,9 +20,8 @@ def get_previous_responses(user_email, session, limit=2):
     return records
 
 async def llm_response(question, data, session, user_email):
-
-    previous = get_previous_responses(user_email, session, limit=2)
     print(data)
+    previous = get_previous_responses(user_email, session, limit=2)
     
     message = [
         {

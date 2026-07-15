@@ -25,21 +25,17 @@ async def collection_save(prepared_batch, embed_model):
                 "bm25": SparseVectorParams()
             },
         )
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="pipeline",
-            field_schema=PayloadSchemaType.KEYWORD
-        )
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="document_id",
-            field_schema=PayloadSchemaType.INTEGER
-        )
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="page_number",
-            field_schema=PayloadSchemaType.INTEGER
-        )
+
+    client.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="source_name",
+        field_schema=PayloadSchemaType.KEYWORD
+    )
+    client.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="page_number",
+        field_schema=PayloadSchemaType.INTEGER
+    )
 
     results = []
     for ids, documents, metadata, embeddings, sparse_embeddings in prepared_batch:

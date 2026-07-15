@@ -1,6 +1,6 @@
 from fastapi import FastAPI, UploadFile, Depends, HTTPException, status, Request, Header
 from pydantic import BaseModel
-from fastapi.responses import RedirectResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestFormStrict
 from typing import Annotated
@@ -45,7 +45,6 @@ class HeaderToken(BaseModel):
     Authorization: str
 
 class Question(BaseModel):
-    pipeline: str = 'rag'
     question: str
 
 class UserFields(BaseModel):
@@ -167,15 +166,15 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
 
     pdf_text = await extract_text_from_pdf(file_path=save_path)
     chunks =  await make_chunks(pdf_text)
-    vector = await store(chunks=chunks, embed_model=embed_model)
-    return vector    
-
+    source_name = file.filename
+    print(source_name)
+    vector = await store(chunks=chunks, embed_model=embed_model, source_name=source_name)
+    return vector
 
 @app.post("/query/")
 async def get_response(data: Question, session: SessionDep, request: Request, Authorization: str = Header()):
     
     question = data.question
-    pipeline = data.pipeline
 
     header_token = jwt.decode(
         Authorization,
@@ -191,7 +190,7 @@ async def get_response(data: Question, session: SessionDep, request: Request, Au
     rerank_model = request.app.state.rerank_model
     sparse_model = request.app.state.sparse_model
 
-    get_relevent_chunks = get_data(question,  pipeline, embed_model, rerank_model, sparse_model)
+    get_relevent_chunks = get_data(question, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
 

@@ -11,7 +11,8 @@ def get_ocr_engine():
     if ocr_engine is None:
         ocr_engine = PaddleOCR(
             use_angle_cls=False,
-            lang="en"
+            lang="en",
+            total_process_num=8
         )
     return ocr_engine
 
@@ -37,7 +38,8 @@ async def extract_text_from_pdf(file_path: str):
                 "page_number": page_number,
                 "text": "   ".join(page_lines),
                 "source": "paddle_ocr",
-                "file_path": file_path
+                "file_path": str(file_path)
             })
-
+    
+    print(f"this is the pdf extracted text - ----------------------------=========================>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>{pdf_text}")
     return pdf_text
