@@ -16,20 +16,13 @@ def get_data(question, embed_model, rerank_model, sparse_model ,top_k: int = 4, 
         embedded_question = embedded_question.tolist()
 
     sparse_query = list(sparse_model.embed([question]))[0]
-
-    # query_filter = Filter(
-    #     must=[
-    #         FieldCondition(key="source_name", match=MatchValue(value=".pdf")),
-    #     ]
-    # )
-
+    
     candidates = client.query_points(
         collection_name=COLLECTION_NAME,
         prefetch=[
             Prefetch(
                 query=embedded_question,
                 using="dense",
-                # filter=query_filter,
                 limit=fetch_k,
             ),
             Prefetch(
@@ -38,7 +31,6 @@ def get_data(question, embed_model, rerank_model, sparse_model ,top_k: int = 4, 
                     values=sparse_query.values.tolist(),
                 ),
                 using="bm25",
-                # filter=query_filter,
                 limit=fetch_k,
             ),
         ],
@@ -51,10 +43,10 @@ def get_data(question, embed_model, rerank_model, sparse_model ,top_k: int = 4, 
 
     pairs = [(question, c.payload["text"]) for c in candidates]
     scores = reranker.predict(pairs)
+
     reranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)[:top_k]
 
 
     chunks = [c.payload["text"] for c, score in reranked]
 
-    return chunks   
-
+    return chunks

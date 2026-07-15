@@ -36,6 +36,11 @@ async def collection_save(prepared_batch, embed_model):
         field_name="page_number",
         field_schema=PayloadSchemaType.INTEGER
     )
+    client.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="file_id",
+        field_schema=PayloadSchemaType.KEYWORD
+    )
 
     results = []
     for ids, documents, metadata, embeddings, sparse_embeddings in prepared_batch:
@@ -44,9 +49,7 @@ async def collection_save(prepared_batch, embed_model):
             vector = embeddings[i]
             if hasattr(vector, "tolist"):
                 vector = vector.tolist()
-
             sparse = sparse_embeddings[i]
-
             points.append(
                 PointStruct(
                     id=ids[i],
@@ -62,5 +65,4 @@ async def collection_save(prepared_batch, embed_model):
             )
         result = client.upsert(collection_name=COLLECTION_NAME, points=points)
         results.append(result)
-
     return True

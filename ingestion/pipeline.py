@@ -18,15 +18,16 @@ async def store(embed_model, chunks, source_name, batch_size: int = 500):
 
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i:i + batch_size]
-        ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, f"id_{c['id']}")) for c in batch]
+        ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, c['id'])) for c in batch]
         documents = [c["text"] for c in batch]
         metadata = [
             {
                 "page_number": c["page_number"],
                 "source_name": source_name,
+                "file_id": c['document_id']
             } for c in batch
         ]
-
+            
         embeddings = await embedding_documents(documents, embed_model)
         sparse_embeddings = list(sparse_model.embed(documents))
         prepared_batch.append((ids, documents, metadata, embeddings, sparse_embeddings))

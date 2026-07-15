@@ -165,7 +165,7 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
     embed_model = request.app.state.embed_model    
 
     pdf_text = await extract_text_from_pdf(file_path=save_path)
-    chunks =  await make_chunks(pdf_text)
+    chunks =  await make_chunks(pdf_text, document_id)
     source_name = file.filename
     print(source_name)
     vector = await store(chunks=chunks, embed_model=embed_model, source_name=source_name)
@@ -175,7 +175,6 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
 async def get_response(data: Question, session: SessionDep, request: Request, Authorization: str = Header()):
     
     question = data.question
-
     header_token = jwt.decode(
         Authorization,
         SECRET_KEY,
