@@ -11,6 +11,7 @@ __pycache__/
 
 # Uploaded documents
 storage/documents/
+storage/ocr_documents/
 storage/*.pdf
 *.pdf.env
 
