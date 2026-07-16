@@ -20,7 +20,6 @@ def get_previous_responses(user_email, session, limit=2):
     return records
 
 async def llm_response(question, data, session, user_email):
-    print(data)
     previous = get_previous_responses(user_email, session, limit=2)
     
     message = [
@@ -56,3 +55,7 @@ async def llm_response(question, data, session, user_email):
     new_response = LLM_Response(user_email= user_email, question=question, llm_response=final_response)
     session.add(new_response)
     session.commit()
+
+    #removed teh paddle ocr layer and changed it with the OCRmyPDF and pdfplumber a it was taking longer time for text extraction and 
+    #applied expiration of the token in which any token will expire after 30 minutes ad have to get teh enew on e after this much time
+    #teh passwords were ebing stores as normal text converted tehm to teh hashed passwords using 

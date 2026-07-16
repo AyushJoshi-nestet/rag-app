@@ -21,22 +21,22 @@ from fastembed import SparseTextEmbedding
 import json
 import os
 from dotenv import load_dotenv
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
+from pwdlib import PasswordHash
 
 load_dotenv()
+
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_TIME = 60
+TOKEN_EXPIRE_TIME = 30
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
-
     app.state.embed_model = SentenceTransformer('BAAI/bge-small-en-v1.5')
     app.state.rerank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     app.state.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
-   
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -61,10 +61,25 @@ STORAGE_PATH = Path("storage/documents")
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
+password_hash = PasswordHash.recommended()
 
-def create_access_token(data: dict):
+def get_password_hash(password):
+    return password_hash.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str):
+    return password_hash.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    to_encode.update({"exp": expire})
     token = jwt.encode(
-    payload=data,
+    payload=to_encode,
     key=SECRET_KEY,
     algorithm=ALGORITHM
 )
@@ -84,11 +99,14 @@ async def user_signup(data: UserFields, session: SessionDep):
             detail="email already exist"
         )
 
+    password= data.password
+    hashed_password = get_password_hash(password)
+
     user = Users(
         name=data.name,
         phone=data.phone,
         email=data.email,
-        password=data.password,
+        password=hashed_password,
     )
 
     session.add(user)
@@ -105,24 +123,34 @@ async def user_signup(data: UserFields, session: SessionDep):
 async def user_login(data: LoginFields, session: SessionDep):
 
     statement = select(Users).where(
-        Users.email == data.email,
-        Users.password == data.password
+        Users.email == data.email
     )
-    
-    user_data = session.exec(statement).first()
 
-    if not user_data:
+    user = session.exec(statement).first()
+
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=401,
             detail="Invalid email or password"
-        )    
-    
-    token = create_access_token(
-        data=user_data.model_dump(mode="json")
+        )
+
+    if not verify_password(data.password, user.password):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email
+        },
+        expires_delta=timedelta(minutes=TOKEN_EXPIRE_TIME)
     )
 
     return {
-        token
+        "access_token": access_token,
+        "token_type": "bearer"
     }
 
 @app.post("/upload/")
@@ -168,7 +196,6 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
     pdf_text = extract_text_from_pdf(file_path=save_path)
     chunks =  await make_chunks(pdf_text, document_id)
     source_name = file.filename
-    print(source_name)
     vector = await store(chunks=chunks, embed_model=embed_model, source_name=source_name)
     return vector
 
@@ -193,8 +220,6 @@ async def get_response(data: Question, session: SessionDep, request: Request, Au
     get_relevent_chunks = get_data(question, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
-
         llm_response( user_email= user_email, question=question, data=get_relevent_chunks, session=session),
         media_type="text/event-stream"
-    
     )

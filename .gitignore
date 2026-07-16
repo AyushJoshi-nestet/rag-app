@@ -15,5 +15,6 @@ storage/ocr_documents/
 storage/*.pdf
 *.pdf.env
 
-# used for migrations
-alembic
+# Alembic - keeping migration scripts tracked, ignore only cache
+alembic/__pycache__/
+alembic/versions/__pycache__/
