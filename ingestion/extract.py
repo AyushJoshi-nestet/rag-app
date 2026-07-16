@@ -21,6 +21,7 @@ async def extract_text_from_pdf(file_path: str):
     pdf_text = []
 
     with pdfplumber.open(file_path) as pdf:
+
         for page_number, page in enumerate(pdf.pages, start=1):
             image = page.to_image(resolution=150).original
             image_array = np.array(image.convert("RGB"))

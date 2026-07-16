@@ -24,5 +24,3 @@ async def make_chunks(pdf_text, document_id, chunk_size=700, chunk_overlap=50):
             start += chunk_size - chunk_overlap
 
     return all_chunks
-
-# Chunk IDs restarted from 0 for every file, causing uuid5 to generate duplicate point IDs across files, which resulted in each new upload's upsert overwriting the previous file's chunks in Qdrant; this was fixed by prefixing each chunk ID with its document_id to ensure globally unique IDs across all files and by storing the document_id in the payload as well.

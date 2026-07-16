@@ -31,16 +31,20 @@ async def llm_response(question, data, session, user_email):
     ]
 
     for record in previous:
+    
         message.append({"role": "assistant", "content": f"This is teh previous question asked --->>> {record.question}"})
         message.append({"role": "assistant", "content": f"This is the response to that question --->>> {record.llm_response}"})
+    
     message.append({"role": "user", "content": question})
 
     response = groq_client.chat.completions.create(
+    
         model=os.getenv("GROQ_MODEL"),
         messages=message,
         stream=True,
         temperature=0
     )
+
     database_save = []
     for chunk in response:
         content = chunk.choices[0].delta.content
