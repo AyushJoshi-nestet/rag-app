@@ -58,6 +58,7 @@ class LoginFields(BaseModel):
     password: str
 
 STORAGE_PATH = Path("storage/documents")
+
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
@@ -144,7 +145,7 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
             detail="Uploaded file is not a valid PDF"
         )
 
-    if num_pages > 25:
+    if num_pages > 70:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"PDF must not exceed 25 pages (got {num_pages})"
@@ -164,7 +165,7 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
 
     embed_model = request.app.state.embed_model    
 
-    pdf_text = await extract_text_from_pdf(file_path=save_path)
+    pdf_text = extract_text_from_pdf(file_path=save_path)
     chunks =  await make_chunks(pdf_text, document_id)
     source_name = file.filename
     print(source_name)

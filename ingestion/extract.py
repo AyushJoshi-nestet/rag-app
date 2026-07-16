@@ -1,46 +1,35 @@
 import pdfplumber
-from paddleocr import PaddleOCR
-import numpy as np
-import os
+import ocrmypdf
+from pathlib import Path
 
-os.environ["FLAGS_use_mkldnn"] = "0"
-ocr_engine = None
+def extract_text_from_pdf(file_path):
+    OCR_STORAGE_PATH = Path("storage/ocr_documents")
+    OCR_STORAGE_PATH.mkdir(parents=True, exist_ok=True)  # make sure dir exists
 
-def get_ocr_engine():
-    global ocr_engine
-    if ocr_engine is None:
-        ocr_engine = PaddleOCR(
-            use_angle_cls=False,
-            lang="en",
-            total_process_num=8
-        )
-    return ocr_engine
+    input_path = Path(file_path)
+    save_path = OCR_STORAGE_PATH / f"OCR_{input_path.name}"
 
-async def extract_text_from_pdf(file_path: str):    
-    
+    ocrmypdf.ocr(
+        input_file=str(input_path),
+        output_file=str(save_path),
+        output_type="pdf",
+        skip_text=True,
+        rotate_pages=True,
+        jobs=4,
+        deskew=True
+    )
+
     pdf_text = []
 
-    with pdfplumber.open(file_path) as pdf:
-
+    with pdfplumber.open(save_path) as pdf:
         for page_number, page in enumerate(pdf.pages, start=1):
-            image = page.to_image(resolution=150).original
-            image_array = np.array(image.convert("RGB"))
-
-            ocr = get_ocr_engine()
-            result = ocr.ocr(image_array)
-
-            page_lines = []
-            if result and result[0]:
-                for detection in result[0]:
-                    box, (text, confidence) = detection
-                    page_lines.append(text)
-
+            text = page.extract_text() or ""
             pdf_text.append({
                 "page_number": page_number,
-                "text": "   ".join(page_lines),
-                "source": "paddle_ocr",
-                "file_path": str(file_path)
+                "text": text,
+                "source": "pdfplumber",
+                "file_path": str(save_path)
             })
-    
-    print(f"this is the pdf extracted text - ----------------------------=========================>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>{pdf_text}")
+            
+    print(pdf_text)
     return pdf_text
