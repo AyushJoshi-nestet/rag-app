@@ -57,5 +57,7 @@ async def llm_response(question, data, session, user_email):
     session.commit()
 
     #removed teh paddle ocr layer and changed it with the OCRmyPDF and pdfplumber a it was taking longer time for text extraction and 
+    
     #applied expiration of the token in which any token will expire after 30 minutes ad have to get teh enew on e after this much time
-    #teh passwords were ebing stores as normal text converted tehm to teh hashed passwords using 
+    
+    #passowrd was being saved as simple text and was being exposed in the token fixed it with the passowrd being saved as hash and token being geenrated on email only

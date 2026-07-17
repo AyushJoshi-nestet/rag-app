@@ -9,7 +9,8 @@ class Documents(SQLModel, table= True):
     file_id: str
     user_file_path: str
     user_file_name: str
-
+    status: str = Field(default="pending")
+    
     created_at: datetime = Field(default_factory=datetime.now)
 
 class LLM_Response(SQLModel, table=True):

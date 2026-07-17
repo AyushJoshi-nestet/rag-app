@@ -9,11 +9,9 @@ from storage.db import create_db_and_tables, get_session
 from storage.data import Documents, Users
 import uuid
 from pathlib import Path
-from ingestion.extract import extract_text_from_pdf
+from ingestion.tasks import save_embeddings_through_task
 import pdfplumber
 import io
-from ingestion.chunk import make_chunks 
-from ingestion.pipeline import store
 from retrieval.search import get_data
 from generation.llm import llm_response
 from sentence_transformers import SentenceTransformer, CrossEncoder
@@ -34,7 +32,6 @@ TOKEN_EXPIRE_TIME = 30
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
-    app.state.embed_model = SentenceTransformer('BAAI/bge-small-en-v1.5')
     app.state.rerank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     app.state.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
     yield
@@ -152,32 +149,22 @@ async def user_login(data: LoginFields, session: SessionDep):
         "access_token": access_token,
         "token_type": "bearer"
     }
-
 @app.post("/upload/")
 async def upload_document(file: UploadFile, session: SessionDep, request: Request):
 
     if file.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are accepted"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PDF files are accepted")
+
     content = await file.read()
 
     try:
         with pdfplumber.open(io.BytesIO(content)) as pdf:
             num_pages = len(pdf.pages)
-
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file is not a valid PDF"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is not a valid PDF")
 
     if num_pages > 70:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"PDF must not exceed 25 pages (got {num_pages})"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"PDF must not exceed 70 pages (got {num_pages})")
 
     document_id = str(uuid.uuid4())
     document_name = f"{document_id}_{file.filename}"
@@ -191,27 +178,39 @@ async def upload_document(file: UploadFile, session: SessionDep, request: Reques
     session.commit()
     session.refresh(doc)
 
-    embed_model = request.app.state.embed_model    
-
-    pdf_text = extract_text_from_pdf(file_path=save_path)
-    chunks =  await make_chunks(pdf_text, document_id)
     source_name = file.filename
-    vector = await store(chunks=chunks, embed_model=embed_model, source_name=source_name)
-    return vector
+
+    task = save_embeddings_through_task.delay(
+        file_path=str(save_path),
+        document_id=document_id,
+        source_name=source_name
+    )
+
+    return {
+        "status": "processing",
+        "document_id": document_id,
+        "task_id": task.id
+    }
 
 @app.post("/query/")
 async def get_response(data: Question, session: SessionDep, request: Request, Authorization: str = Header()):
-    
+
     question = data.question
-    header_token = jwt.decode(
-        Authorization,
-        SECRET_KEY,
-        algorithms=["HS256"]
-    )
+
+    try:
+        header_token = jwt.decode(
+            Authorization,
+            SECRET_KEY,
+            algorithms=["HS256"]
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired, please login again")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     user_email = header_token.get("email")
     if not user_email:
-       raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     embed_model = request.app.state.embed_model
     rerank_model = request.app.state.rerank_model
@@ -220,6 +219,6 @@ async def get_response(data: Question, session: SessionDep, request: Request, Au
     get_relevent_chunks = get_data(question, embed_model, rerank_model, sparse_model)
 
     return StreamingResponse(
-        llm_response( user_email= user_email, question=question, data=get_relevent_chunks, session=session),
+        llm_response(user_email=user_email, question=question, data=get_relevent_chunks, session=session),
         media_type="text/event-stream"
     )

@@ -1,19 +1,18 @@
-from qdrant_client import AsyncQdrantClient
+from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance, PayloadSchemaType,SparseVector, SparseVectorParams
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
+client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
 
-client = AsyncQdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
-
-async def collection_save(prepared_batch, embed_model):
+def collection_save(prepared_batch, embed_model):
     model = embed_model
     
     COLLECTION_NAME = "rag_app_collection"
 
-    if not await client.collection_exists(COLLECTION_NAME):
-        await client.create_collection(
+    if not client.collection_exists(COLLECTION_NAME):
+     client.create_collection(
             collection_name=COLLECTION_NAME,
             vectors_config={
                 "dense": VectorParams(
@@ -25,17 +24,17 @@ async def collection_save(prepared_batch, embed_model):
                 "bm25": SparseVectorParams()
             },
         )
-        await client.create_payload_index(
+     client.create_payload_index(
             collection_name=COLLECTION_NAME,
             field_name="source_name",
             field_schema=PayloadSchemaType.KEYWORD
         )
-        await client.create_payload_index(
+     client.create_payload_index(
             collection_name=COLLECTION_NAME,
             field_name="page_number",
             field_schema=PayloadSchemaType.INTEGER
         )
-        await client.create_payload_index(
+     client.create_payload_index(
             collection_name=COLLECTION_NAME,
             field_name="file_id",
             field_schema=PayloadSchemaType.KEYWORD
@@ -62,6 +61,7 @@ async def collection_save(prepared_batch, embed_model):
                     payload={"text": documents[i], **metadata[i]}
                 )
             )
-        result = await client.upsert(collection_name=COLLECTION_NAME, points=points)
+        result = client.upsert(collection_name=COLLECTION_NAME, points=points)
         results.append(result)
+    
     return True
