@@ -1,4 +1,4 @@
-from celery_app import app
+from ingestion.celery_app import app
 from ingestion.extract import extract_text_from_pdf
 from ingestion.chunk import make_chunks
 import uuid
@@ -55,5 +55,12 @@ def save_embeddings_through_task(self, file_path, document_id, source_name, batc
         return store_embeddings
 
     except Exception as e:
-        set_status(document_id, "failed")
-        raise self.retry(exc=e, countdown=10)
+        try:
+            raise self.retry(exc=e, countdown=10)
+        except self.MaxRetriesExceededError:
+            set_status(document_id, "failed")
+            raise
+
+
+
+

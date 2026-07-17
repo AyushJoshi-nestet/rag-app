@@ -32,8 +32,11 @@ TOKEN_EXPIRE_TIME = 30
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    
+    app.state.embed_model = SentenceTransformer('BAAI/bge-small-en-v1.5')
     app.state.rerank_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
     app.state.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+    
     yield
 
 app = FastAPI(lifespan=lifespan)

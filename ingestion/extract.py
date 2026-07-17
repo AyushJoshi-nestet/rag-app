@@ -7,6 +7,7 @@ def extract_text_from_pdf(file_path):
 
     input_path = Path(file_path)
     save_path = OCR_STORAGE_PATH / f"OCR_{input_path.name}"
+    OCR_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 
     try:
         ocrmypdf.ocr(
